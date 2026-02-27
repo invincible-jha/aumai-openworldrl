@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import collections
 import random
-from typing import Optional
+from contextlib import contextmanager
+from typing import Iterator, Optional
 
 from .models import Environment, Experience, RLAgent, TrainingResult
 
@@ -277,6 +278,20 @@ class QLearningAgent:
         )
         self._config = self._config.model_copy(update={"epsilon": new_epsilon})
 
+    @contextmanager
+    def eval_mode(self) -> Iterator[None]:
+        """Context manager that sets epsilon to 0.0 for greedy evaluation.
+
+        Saves the current epsilon value before entering and restores it
+        unconditionally on exit via try/finally.
+        """
+        saved = self._config.epsilon
+        self._config = self._config.model_copy(update={"epsilon": 0.0})
+        try:
+            yield
+        finally:
+            self._config = self._config.model_copy(update={"epsilon": saved})
+
     def _greedy_action(self, state: object) -> int:
         """Return the action with highest Q-value for *state*."""
         q_values = [
@@ -403,36 +418,30 @@ class Trainer:
         Returns:
             TrainingResult with evaluation statistics.
         """
-        # Temporarily set epsilon to 0
-        saved_epsilon = self._agent._config.epsilon
-        self._agent._config = self._agent._config.model_copy(update={"epsilon": 0.0})
-
         reward_history: list[float] = []
         success_count = 0
         total_steps = 0
 
-        for episode in range(episodes):
-            state = self._env.reset()
-            episode_reward = 0.0
-            done = False
-            show = render_first and episode == 0
+        with self._agent.eval_mode():
+            for episode in range(episodes):
+                state = self._env.reset()
+                episode_reward = 0.0
+                done = False
+                show = render_first and episode == 0
 
-            while not done:
-                if show:
-                    print(self._env.render())
-                    print()
-                action = self._agent.select_action(state)
-                next_state, reward, done, info = self._env.step(action)
-                state = next_state
-                episode_reward += reward
-                total_steps += 1
+                while not done:
+                    if show:
+                        print(self._env.render())
+                        print()
+                    action = self._agent.select_action(state)
+                    next_state, reward, done, info = self._env.step(action)
+                    state = next_state
+                    episode_reward += reward
+                    total_steps += 1
 
-            reward_history.append(round(episode_reward, 4))
-            if info.get("reached_goal"):
-                success_count += 1
-
-        # Restore epsilon
-        self._agent._config = self._agent._config.model_copy(update={"epsilon": saved_epsilon})
+                reward_history.append(round(episode_reward, 4))
+                if info.get("reached_goal"):
+                    success_count += 1
 
         last_100 = reward_history[-100:]
         mean_reward = sum(last_100) / len(last_100) if last_100 else 0.0

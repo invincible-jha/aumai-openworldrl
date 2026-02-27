@@ -1,0 +1,4 @@
+# file: M:\Project DarkMatter\workspace\aumai-openworldrl\src\aumai_openworldrl\core.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.1, -100, 100, 1000, '#', '.', 'A', 'G', 'down', 'epsilon', 'left', 'reached_goal', 'right', 'steps', 'up']
